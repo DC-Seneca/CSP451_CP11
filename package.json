@@ -11,6 +11,10 @@
     "start": "node server.js",
     "test": "echo \"No tests specified - placeholder for CI\" && exit 0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DC-Seneca/CSP451_CP11.git"
+  },
   "keywords": [
     "docker",
     "mysql",
