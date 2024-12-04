@@ -14,6 +14,8 @@ This comprehensive guide details the development and deployment of a containeriz
 - [Maintenance and Monitoring](#maintenance-and-monitoring)
 - [Troubleshooting Guide](#troubleshooting-guide)
 - [Additional Resources](#additional-resources)
+- [Deployment Scenarios](#deployment-scenarios)
+- [Getting Started](#getting-started)
 
 ## Project Overview
 
@@ -231,11 +233,8 @@ networks:
 
 ## Development Setup
 
-1. **Clone Repository:**
-   ```bash
-   git clone <repository-url>
-   cd multi-component-app
-   ```
+1. **Create Project Files:**
+   Follow the "Project Setup" section above to create all necessary files.
 
 2. **Install Dependencies:**
    ```bash
@@ -261,6 +260,164 @@ networks:
    - Pulls MySQL 8.0 image
    - Creates required networks
    - Starts all services
+
+## Getting Started
+
+### Project Setup
+
+1. **Create Project Structure**
+   ```bash
+   # Create project directory
+   mkdir csp451-demo
+   cd csp451-demo
+   
+   # Create subdirectories
+   mkdir public
+   ```
+
+2. **Initialize Node.js Project**
+   ```bash
+   # Initialize npm project
+   npm init -y
+   
+   # Install required dependencies
+   npm install express mysql
+   ```
+
+3. **Create Required Files**
+   Create the following files in your project directory:
+
+   a. `public/index.html`:
+   ```html
+   <!DOCTYPE html>
+   <html>
+   <head>
+       <title>Sample Web Application</title>
+   </head>
+   <body>
+       <h1>Welcome to the Sample Web Application</h1>
+       <div id="announcements"></div>
+       <script>
+           fetch('/api/announcements')
+               .then(response => response.json())
+               .then(data => {
+                   const announcementsDiv = document.getElementById('announcements');
+                   data.forEach(item => {
+                       const p = document.createElement('p');
+                       p.textContent = `${item.id}: ${item.message}`;
+                       announcementsDiv.appendChild(p);
+                   });
+               })
+               .catch(err => console.error(err));
+       </script>
+   </body>
+   </html>
+   ```
+
+   b. `server.js`:
+   ```javascript
+   const express = require('express');
+   const mysql = require('mysql');
+   const path = require('path');
+
+   const app = express();
+   const port = 3000;
+
+   // MySQL Connection Configuration
+   const db = mysql.createConnection({
+       host: process.env.MYSQL_HOST || 'localhost',
+       user: 'root',
+       password: 'password',
+       database: 'sampledb'
+   });
+
+   // Connect to MySQL
+   db.connect((err) => {
+       if (err) {
+           console.error('Error connecting to MySQL:', err);
+           return;
+       }
+       console.log('Connected to MySQL database');
+   });
+
+   // Serve static files
+   app.use(express.static('public'));
+
+   // API endpoint
+   app.get('/api/announcements', (req, res) => {
+       db.query('SELECT * FROM announcements', (err, results) => {
+           if (err) {
+               console.error('Error querying database:', err);
+               res.status(500).json({ error: 'Database error' });
+               return;
+           }
+           res.json(results);
+       });
+   });
+
+   app.listen(port, () => {
+       console.log(`Server running at http://localhost:${port}`);
+   });
+   ```
+
+   c. `init.sql`:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS sampledb;
+   USE sampledb;
+
+   CREATE TABLE IF NOT EXISTS announcements (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       message VARCHAR(255) NOT NULL
+   );
+
+   INSERT INTO announcements (message) VALUES
+       ('Welcome to the sample web application!'),
+       ('This is your first announcement!'),
+       ('Enjoy working on this project!');
+   ```
+
+   d. `Dockerfile`:
+   ```dockerfile
+   FROM node:18-alpine
+   WORKDIR /app
+   COPY . .
+   RUN npm install
+   EXPOSE 3000
+   CMD ["node", "server.js"]
+   ```
+
+   e. `docker-compose.yml`:
+   ```yaml
+   version: '3.8'
+
+   services:
+     web:
+       build: .
+       ports:
+         - "3000:3000"
+       depends_on:
+         - mysql
+       networks:
+         - app-network
+       environment:
+         MYSQL_HOST: mysql
+
+     mysql:
+       image: mysql:8.0
+       environment:
+         MYSQL_ROOT_PASSWORD: password
+         MYSQL_DATABASE: sampledb
+       volumes:
+         - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+       ports:
+         - "3306:3306"
+       networks:
+         - app-network
+
+   networks:
+     app-network:
+       driver: bridge
+   ```
 
 ## Docker Configuration
 
@@ -431,47 +588,167 @@ docker exec -i mysql mysql -u root -p sampledb < backup.sql
 
 ## Troubleshooting Guide
 
-### 1. Common Issues
+### Common Issues and Solutions
 
-#### Container Won't Start
+#### 1. Docker Container Issues
+
+##### Container Won't Start
 ```bash
-# Check logs
-docker-compose logs web
+# Windows
+docker-compose down
+docker system prune -f
+docker-compose up --build
 
-# Verify network
+# Linux/Mac
+sudo docker-compose down
+sudo docker system prune -f
+sudo docker-compose up --build
+```
+
+##### Permission Issues (Linux/Mac)
+```bash
+# Fix permission issues with MySQL volume
+sudo chown -R 999:999 ./mysql-data
+# Fix permission issues with node_modules
+sudo chown -R $USER:$USER .
+```
+
+##### Network Issues
+```bash
+# Check if containers are on the same network
 docker network ls
 docker network inspect app-network
+
+# Verify container connectivity
+docker exec web ping mysql  # Windows
+docker exec web ping mysql  # Linux/Mac
 ```
 
-#### Database Connection Issues
+#### 2. Database Issues
+
+##### Connection Refused
 ```bash
-# Check MySQL status
+# Check if MySQL is running
+docker-compose ps
 docker-compose logs mysql
 
-# Verify connectivity 
-docker exec web ping mysql
+# Verify MySQL credentials
+docker exec -it mysql mysql -uroot -p
+# Enter password when prompted
 ```
 
-#### Application Errors
+##### Database Reset
 ```bash
-# Check application logs
+# Windows
+docker-compose down
+del /f /s /q mysql-data
+docker-compose up --build
+
+# Linux/Mac
+sudo docker-compose down
+rm -rf mysql-data
+sudo docker-compose up --build
+```
+
+#### 3. Node.js Application Issues
+
+##### Module Not Found
+```bash
+# Windows
+rmdir /s /q node_modules
+del package-lock.json
+docker-compose build --no-cache web
+
+# Linux/Mac
+rm -rf node_modules
+rm package-lock.json
+docker-compose build --no-cache web
+```
+
+##### Port Already In Use
+```bash
+# Windows
+netstat -ano | findstr :3000
+taskkill /PID <PID> /F
+
+# Linux/Mac
+lsof -i :3000
+kill -9 <PID>
+```
+
+### Platform-Specific Considerations
+
+#### Windows
+- Use Windows PowerShell or Command Prompt with Administrator privileges
+- Docker Desktop must be installed and running
+- WSL2 backend is recommended for better performance
+- Line endings should be set to LF in git config:
+  ```bash
+  git config --global core.autocrlf input
+  ```
+
+#### Linux
+- Docker and Docker Compose must be installed separately
+- User must be in docker group or use sudo:
+  ```bash
+  sudo usermod -aG docker $USER
+  newgrp docker
+  ```
+- SELinux considerations (if enabled):
+  ```bash
+  sudo setenforce 0  # Temporarily disable
+  # Or label volumes
+  sudo chcon -Rt svirt_sandbox_file_t ./
+  ```
+
+#### macOS
+- Install Docker Desktop for Mac
+- Ensure sufficient resources allocated in Docker preferences
+- For M1/M2 Macs, use ARM64 images when available:
+  ```yaml
+  # In docker-compose.yml
+  services:
+    web:
+      platform: linux/arm64/v8  # For M1/M2 Macs
+  ```
+
+### Verification Steps
+
+After resolving issues, verify the setup:
+
+1. Check container status:
+```bash
+docker-compose ps
+```
+
+2. Verify logs:
+```bash
 docker-compose logs web
-
-# Access container shell
-docker exec -it web sh
+docker-compose logs mysql
 ```
 
-### 2. Debug Commands
+3. Test database connection:
 ```bash
-# List all containers (including stopped)
-docker ps -a
-
-# Check container configuration
-docker inspect <container_id>
-
-# View network settings
-docker network inspect app-network
+docker exec web node -e "const mysql = require('mysql'); const connection = mysql.createConnection({host: 'mysql', user: 'root', password: 'password'}); connection.connect((err) => { console.log(err || 'Connected!'); process.exit(); });"
 ```
+
+4. Check application access:
+- Open browser: http://localhost:3000
+- Check API: http://localhost:3000/api/announcements
+
+### Getting Help
+
+If issues persist:
+1. Check Docker and container logs
+2. Verify network configurations
+3. Ensure all ports are available
+4. Review environment variables
+5. Check system resources (CPU, Memory, Disk)
+
+For additional assistance:
+- Review Docker documentation: https://docs.docker.com
+- Check Node.js documentation: https://nodejs.org/docs
+- MySQL documentation: https://dev.mysql.com/doc
 
 ## Additional Resources
 
@@ -496,3 +773,214 @@ docker network inspect app-network
   - Basic announcement functionality
   - Docker containerization
   - MySQL integration
+
+## Deployment Scenarios
+
+### Scenario 1: Local Development Environment
+
+#### Prerequisites
+- Node.js v18 or later
+- MySQL 8.0
+- npm (comes with Node.js)
+
+#### Steps
+
+1. **Create Project Files**
+   Follow the "Project Setup" section above to create all necessary files
+   Ensure all files are created with the exact content provided
+
+2. **Install MySQL**
+   ```bash
+   # Windows: Download and install from https://dev.mysql.com/downloads/installer/
+   # Mac with Homebrew
+   brew install mysql
+   brew services start mysql
+   # Linux (Ubuntu/Debian)
+   sudo apt update
+   sudo apt install mysql-server
+   sudo systemctl start mysql
+   ```
+
+3. **Configure MySQL**
+   ```bash
+   # Set root password and create database
+   mysql -u root
+   ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
+   exit;
+   
+   # Import database schema
+   mysql -u root -p < init.sql
+   ```
+
+4. **Setup Node.js Application**
+   ```bash
+   # Install dependencies
+   npm install
+   
+   # Create .env file
+   echo "MYSQL_HOST=localhost" > .env
+   echo "MYSQL_USER=root" >> .env
+   echo "MYSQL_PASSWORD=password" >> .env
+   echo "MYSQL_DATABASE=sampledb" >> .env
+   ```
+
+5. **Run and Test**
+   ```bash
+   # Start the application
+   node server.js
+   
+   # Test in browser
+   open http://localhost:3000
+   
+   # Test API endpoint
+   curl http://localhost:3000/api/announcements
+   ```
+
+### Scenario 2: Local Docker Desktop Environment
+
+#### Prerequisites
+- Docker Desktop installed and running
+- Docker Compose installed
+
+#### Steps
+
+1. **Build Docker Images**
+   ```bash
+   # Build all services
+   docker-compose build
+   ```
+
+2. **Run Containers**
+   ```bash
+   # Start all services
+   docker-compose up -d
+   
+   # Check status
+   docker-compose ps
+   ```
+
+3. **Test Deployment**
+   ```bash
+   # Check logs
+   docker-compose logs web
+   docker-compose logs mysql
+   
+   # Test connectivity
+   docker exec web curl http://localhost:3000/api/announcements
+   
+   # Access in browser
+   open http://localhost:3000
+   ```
+
+4. **Cleanup (Optional)**
+   ```bash
+   # Stop and remove containers
+   docker-compose down
+   
+   # Remove volumes (if needed)
+   docker-compose down -v
+   ```
+
+### Scenario 3: Docker Hub Deployment
+
+#### Prerequisites
+- Docker Hub account
+- Docker logged in locally (`docker login`)
+
+#### Steps
+
+1. **Prepare Image for Docker Hub**
+   ```bash
+   # Set your Docker Hub username
+   export DOCKER_USERNAME=your-username
+   
+   # Tag the image
+   docker tag csp451-cp11-web $DOCKER_USERNAME/csp451-demo:latest
+   ```
+
+2. **Push to Docker Hub**
+   ```bash
+   # Push the image
+   docker push $DOCKER_USERNAME/csp451-demo:latest
+   ```
+
+3. **Deploy from Docker Hub**
+   ```bash
+   # Stop existing containers (if any)
+   docker-compose down
+   
+   # Edit docker-compose.yml to use Docker Hub image
+   # Replace 'build: .' with 'image: your-username/csp451-demo:latest'
+   
+   # Pull and run
+   docker-compose pull
+   docker-compose up -d
+   ```
+
+4. **Verify Deployment**
+   ```bash
+   # Check container status
+   docker-compose ps
+   
+   # View logs
+   docker-compose logs -f
+   
+   # Test application
+   curl http://localhost:3000/api/announcements
+   ```
+
+### Testing Each Deployment
+
+For each scenario, perform these verification steps:
+
+1. **Database Connection**
+   ```bash
+   # Local Environment
+   mysql -u root -p -e "SELECT * FROM sampledb.announcements;"
+   
+   # Docker Environment
+   docker exec mysql mysql -u root -p sampledb -e "SELECT * FROM announcements;"
+   ```
+
+2. **API Endpoint**
+   ```bash
+   # Using curl
+   curl http://localhost:3000/api/announcements
+   
+   # Using browser
+   open http://localhost:3000/api/announcements
+   ```
+
+3. **Web Interface**
+   - Open browser to http://localhost:3000
+   - Verify announcements are displayed
+   - Check browser console for errors
+
+4. **Error Logging**
+   ```bash
+   # Local Environment
+   tail -f app.log
+   
+   # Docker Environment
+   docker-compose logs -f web
+   ```
+
+### Troubleshooting Each Scenario
+
+#### Local Environment Issues
+- Check MySQL service status
+- Verify Node.js version compatibility
+- Check port availability
+- Review environment variables
+
+#### Docker Desktop Issues
+- Ensure Docker Desktop is running
+- Check container logs
+- Verify network connectivity
+- Review volume mounts
+
+#### Docker Hub Deployment Issues
+- Verify Docker Hub credentials
+- Check image pull policy
+- Review container registry settings
+- Validate image tags
