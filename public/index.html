@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sample Web Application</title>
+</head>
+<body>
+    <h1>Welcome to the Sample Web Application</h1>
+    <div id="announcements"></div>
+    <script>
+        fetch('/api/announcements')
+            .then(response => response.json())
+            .then(data => {
+                const announcementsDiv = document.getElementById('announcements');
+                data.forEach(item => {
+                    const p = document.createElement('p');
+                    p.textContent = `${item.id}: ${item.message}`;
+                    announcementsDiv.appendChild(p);
+                });
+            })
+            .catch(err => console.error(err));
+    </script>
+</body>
+</html>

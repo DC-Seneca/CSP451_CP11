@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+    networks:
+      - app-network
+    environment:
+      MYSQL_HOST: mysql
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: sampledb
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
