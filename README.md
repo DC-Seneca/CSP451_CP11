@@ -448,7 +448,7 @@ docker network inspect app-network
 # Check MySQL status
 docker-compose logs mysql
 
-# Verify connectivity
+# Verify connectivity 
 docker exec web ping mysql
 ```
 
