@@ -8,6 +8,19 @@
     "mysql": "^2.18.1"
   },
   "scripts": {
-    "start": "node server.js"
-  }
+    "start": "node server.js",
+    "test": "echo \"No tests specified - placeholder for CI\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dcjoker/CSP451_CP11.git"
+  },
+  "keywords": [
+    "docker",
+    "mysql",
+    "nodejs",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT"
 }
